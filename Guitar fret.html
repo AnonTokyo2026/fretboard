@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>專業吉他指板模擬器 - 24格版</title>
+    <style>
+        :root {
+            --fretboard-bg: #2d1f16; 
+            --string-color: linear-gradient(to bottom, #888, #ddd, #888);
+            --fret-wire: linear-gradient(to right, #999, #eee, #999);
+            --active-color: #ffcc00; 
+            --inlay-color: rgba(255, 255, 255, 0.15);
+            
+            /* 動態縮放變數：基礎寬度 */
+            --tuning-width: 60px;
+            --open-width: 70px;
+            --fret-width: 75px;
+            --marker-size: 28px;
+            --dot-size: 18px;
+            --font-size: 12px;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            background: #121212; 
+            color: white; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 40px 20px;
+            margin: 0;
+            overflow-x: hidden;
+        }
+        
+        h2 { font-weight: 300; letter-spacing: 2px; margin-bottom: 30px; color: #fff; }
+
+        /* 上方半音選擇按鈕區 */
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .note-btn {
+            width: 50px;
+            height: 50px;
+            border: 1px solid #444;
+            background: #1e1e1e;
+            color: #aaa;
+            cursor: pointer;
+            border-radius: 50%;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .note-btn:hover { border-color: var(--active-color); color: #fff; }
+
+        .note-btn.active {
+            background: var(--active-color);
+            color: #000;
+            border-color: #fff;
+            transform: scale(1.1);
+            box-shadow: 0 0 15px var(--active-color);
+        }
+
+        /* Clear 按鈕專屬樣式 */
+        .clear-btn {
+            height: 50px;
+            padding: 0 20px;
+            border: 1px solid #ff4444;
+            background: #1e1e1e;
+            color: #ff6666;
+            cursor: pointer;
+            border-radius: 25px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-left: 10px;
+        }
+
+        .clear-btn:hover {
+            background: #ff4444;
+            color: #fff;
+            box-shadow: 0 0 15px rgba(255, 68, 68, 0.5);
+        }
+
+        /* 指板外層容器 */
+        .fretboard-outer {
+            width: 100%;
+            overflow-x: auto;
+            padding: 40px 0;
+            display: flex;
+            justify-content: flex-start;
+        }
+
+        .fretboard {
+            display: grid;
+            grid-template-rows: repeat(6, 40px);
+            background: var(--fretboard-bg);
+            border-left: 15px solid #111; /* 琴枕 Nut */
+            position: relative;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            width: max-content; 
+        }
+
+        .string {
+            display: grid;
+            /* 包含最左側調弦選擇區 + 空弦區 + 24個琴格 */
+            grid-template-columns: var(--tuning-width) var(--open-width) repeat(24, var(--fret-width));
+            position: relative;
+        }
+
+        /* 琴弦 */
+        .string::after {
+            content: "";
+            position: absolute;
+            top: 50%; left: var(--tuning-width); right: 0;
+            height: var(--h);
+            background: var(--string-color);
+            z-index: 2;
+            transform: translateY(-50%);
+            pointer-events: none;
+            box-shadow: 0 2px 2px rgba(0,0,0,0.5);
+        }
+        .s0::after { --h: 1px; } .s1::after { --h: 1.5px; } .s2::after { --h: 2px; }
+        .s3::after { --h: 2.5px; } .s4::after { --h: 3px; } .s5::after { --h: 3.5px; }
+
+        /* 琴頭調弦選擇區 */
+        .tuning-cell {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #18110c;
+            border-right: 2px solid #222;
+            z-index: 4;
+            position: relative;
+        }
+
+        .tuning-select {
+            background: #221813;
+            color: var(--active-color);
+            border: 1px solid #554433;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: calc(var(--font-size) + 1px);
+            padding: 2px 4px;
+            cursor: pointer;
+            outline: none;
+            text-align: center;
+            transition: all 0.2s ease;
+        }
+
+        .tuning-select:hover {
+            border-color: var(--active-color);
+            background: #33241b;
+        }
+
+        .fret {
+            border-right: 5px solid #555;
+            border-image: var(--fret-wire) 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .fret:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        /* 音名圓標 */
+        .note-marker {
+            width: var(--marker-size);
+            height: var(--marker-size);
+            background: var(--active-color);
+            color: #000;
+            border-radius: 50%;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            font-size: var(--font-size);
+            font-weight: 900;
+            z-index: 3;
+            border: 2px solid #fff;
+            pointer-events: none;
+        }
+
+        /* 指板圓標 (Dots) */
+        .dot {
+            position: absolute;
+            width: var(--dot-size);
+            height: var(--dot-size);
+            background: var(--inlay-color);
+            border-radius: 50%;
+            z-index: 0;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
+        .fret-num {
+            position: absolute;
+            top: -30px;
+            font-size: 14px;
+            color: #666;
+            width: 100%;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .tuning-label {
+            position: absolute;
+            top: -30px;
+            font-size: 12px;
+            color: #888;
+            width: 100%;
+            text-align: center;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>GUITAR FRETBOARD 24 FRETS</h2>
+
+    <div class="controls" id="controls"></div>
+
+    <div class="fretboard-outer" id="fretboardOuter">
+        <div class="fretboard" id="fretboard"></div>
+    </div>
+
+    <script>
+        const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+        // 預設標準調弦 (1弦到6弦：E, B, G, D, A, E)
+        const tuning = [4, 11, 7, 2, 9, 4]; 
+        const activeNotes = new Set();
+        
+        // 24格指板需要標記圓點的琴格
+        const singleDots = [3, 5, 7, 9, 15, 17, 19, 21];
+        const doubleDots = [12, 24];
+
+        const controls = document.getElementById('controls');
+        const fretboard = document.getElementById('fretboard');
+        const fretboardOuter = document.getElementById('fretboardOuter');
+
+        let currentScale = 1;
+        const noteButtons = {};
+
+        // 初始化上方按鈕
+        notes.forEach(note => {
+            const btn = document.createElement('button');
+            btn.className = 'note-btn';
+            btn.innerText = note;
+            btn.onclick = () => {
+                if (activeNotes.has(note)) {
+                    activeNotes.delete(note);
+                } else {
+                    activeNotes.add(note);
+                }
+                updateDisplay();
+            };
+            controls.appendChild(btn);
+            noteButtons[note] = btn;
+        });
+
+        // 在 B 音右側新增 Clear 按鈕
+        const clearBtn = document.createElement('button');
+        clearBtn.className = 'clear-btn';
+        clearBtn.innerText = 'CLEAR';
+        clearBtn.onclick = () => {
+            activeNotes.clear(); // 清空已選取的音符
+            updateDisplay();     // 更新指板與按鈕狀態
+        };
+        controls.appendChild(clearBtn);
+
+        // 初始化指板
+        function initBoard() {
+            fretboard.innerHTML = ''; // 清空重新渲染
+
+            for (let s = 0; s < 6; s++) {
+                const stringDiv = document.createElement('div');
+                stringDiv.className = `string s${s}`;
+
+                // 1. 最左側：琴頭 Tuning 選擇選單
+                const tuningCell = document.createElement('div');
+                tuningCell.className = 'tuning-cell';
+                
+                if (s === 0) {
+                    const label = document.createElement('div');
+                    label.className = 'tuning-label';
+                    label.innerText = 'Tuning';
+                    tuningCell.appendChild(label);
+                }
+
+                const select = document.createElement('select');
+                select.className = 'tuning-select';
+                notes.forEach((n, idx) => {
+                    const opt = document.createElement('option');
+                    opt.value = idx;
+                    opt.innerText = n;
+                    if (idx === tuning[s]) opt.selected = true;
+                    select.appendChild(opt);
+                });
+
+                // 調弦變更事件
+                select.onchange = (e) => {
+                    tuning[s] = parseInt(e.target.value);
+                    initBoard(); // 重置並重新計算指板上的音高
+                    updateDisplay();
+                };
+
+                tuningCell.appendChild(select);
+                stringDiv.appendChild(tuningCell);
+
+                // 2. 指板琴格 (0格空弦 + 1~24格)
+                for (let f = 0; f <= 24; f++) {
+                    const fretDiv = document.createElement('div');
+                    fretDiv.className = 'fret';
+                    
+                    const noteIdx = (tuning[s] + f) % 12;
+                    const noteName = notes[noteIdx];
+                    
+                    fretDiv.onclick = () => {
+                        if (activeNotes.has(noteName)) {
+                            activeNotes.delete(noteName);
+                        } else {
+                            activeNotes.add(noteName);
+                        }
+                        updateDisplay();
+                    };
+                    
+                    if (s === 2) { 
+                        if (singleDots.includes(f)) {
+                            fretDiv.innerHTML += `<div class="dot"></div>`;
+                        }
+                    }
+                    if (doubleDots.includes(f) && (s === 1 || s === 4)) { 
+                        fretDiv.innerHTML += `<div class="dot"></div>`;
+                    }
+
+                    fretDiv.innerHTML += `<div class="note-marker" data-note="${noteName}">${noteName}</div>`;
+                    
+                    if (s === 0) {
+                        const num = document.createElement('div');
+                        num.className = 'fret-num';
+                        num.innerText = f === 0 ? "Open" : f;
+                        fretDiv.appendChild(num);
+                    }
+                    
+                    stringDiv.appendChild(fretDiv);
+                }
+                fretboard.appendChild(stringDiv);
+            }
+        }
+
+        function updateDisplay() {
+            document.querySelectorAll('.note-marker').forEach(marker => {
+                const note = marker.getAttribute('data-note');
+                marker.style.display = activeNotes.has(note) ? 'flex' : 'none';
+            });
+
+            notes.forEach(note => {
+                const btn = noteButtons[note];
+                if (activeNotes.has(note)) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+        // 動態更新指板尺寸（透過 CSS 變數）
+        function applyScale(scale) {
+            currentScale = scale;
+            const root = document.documentElement;
+            root.style.setProperty('--tuning-width', `${60 * scale}px`);
+            root.style.setProperty('--open-width', `${70 * scale}px`);
+            root.style.setProperty('--fret-width', `${75 * scale}px`);
+            root.style.setProperty('--marker-size', `${Math.max(16, 28 * scale)}px`);
+            root.style.setProperty('--dot-size', `${Math.max(10, 18 * scale)}px`);
+            root.style.setProperty('--font-size', `${Math.max(9, 12 * scale)}px`);
+        }
+
+        // 自動等比例適配視窗大小
+        function autoFitFretboard() {
+            const availableWidth = fretboardOuter.clientWidth; 
+            const baseWidth = 60 + 15 + 70 + (24 * 75); // 原始總寬度 1945px
+            
+            if (availableWidth > 0) {
+                let scale = availableWidth / baseWidth;
+                scale = Math.min(1.0, scale);
+                scale = Math.max(0.35, scale); 
+                applyScale(scale);
+            }
+        }
+
+        initBoard();
+
+        // 頁面載入與視窗縮放時自動適配
+        window.addEventListener('load', autoFitFretboard);
+        window.addEventListener('resize', autoFitFretboard);
+
+        // 僅在游標停留於底部卷軸條區域時支援滾輪縮放
+        fretboardOuter.addEventListener('wheel', (e) => {
+            const rect = fretboardOuter.getBoundingClientRect();
+            const scrollbarZoneHeight = 25; 
+            const isOverScrollbar = e.clientY >= (rect.bottom - scrollbarZoneHeight) && e.clientY <= rect.bottom;
+
+            if (isOverScrollbar) {
+                e.preventDefault();
+                
+                let newScale = currentScale;
+                if (e.deltaY < 0) {
+                    newScale = Math.min(currentScale + 0.05, 1.8);
+                } else {
+                    newScale = Math.max(currentScale - 0.05, 0.35);
+                }
+                
+                applyScale(newScale);
+            }
+        }, { passive: false });
+    </script>
+</body>
+</html>
